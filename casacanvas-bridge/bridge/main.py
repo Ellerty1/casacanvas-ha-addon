@@ -166,7 +166,11 @@ async def _run() -> None:
     log.info("CasaCanvas Bridge %s startet.", __version__)
 
     async with httpx.AsyncClient() as http:
-        ha = HomeAssistantClient(cfg.supervisor_token, http)
+        if cfg.ha_url and cfg.ha_token:
+            log.info("Standalone-Modus: verbinde direkt mit %s", cfg.ha_url)
+            ha = HomeAssistantClient(cfg.ha_token, http, base_url=cfg.ha_url)
+        else:
+            ha = HomeAssistantClient(cfg.supervisor_token, http)
         cc = CasaCanvasClient(cfg.base_url, http)
         cc = await _ensure_paired(cc, cfg, log)
 
