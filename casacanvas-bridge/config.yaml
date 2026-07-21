@@ -1,0 +1,34 @@
+name: CasaCanvas AI Bridge
+version: "0.1.0"
+slug: casacanvas_bridge
+description: >-
+  Verbindet Home Assistant mit CasaCanvas AI. Synchronisiert Entitäten und
+  Dashboards und wendet vom Nutzer bestätigte Änderungen an.
+url: "https://pixel-perfect-clone-34236.lovable.app"
+arch:
+  - aarch64
+  - amd64
+  - armv7
+  - armhf
+  - i386
+startup: application
+boot: auto
+init: false
+hassio_api: true
+hassio_role: manager
+homeassistant_api: true
+auth_api: true
+host_network: false
+ingress: false
+options:
+  pairing_code: ""
+  base_url: "https://pixel-perfect-clone-34236.lovable.app"
+  poll_interval: 5
+  heartbeat_interval: 30
+  log_level: "info"
+schema:
+  pairing_code: "str?"
+  base_url: "url"
+  poll_interval: "int(1,60)"
+  heartbeat_interval: "int(10,300)"
+  log_level: "list(debug|info|warning|error)"
