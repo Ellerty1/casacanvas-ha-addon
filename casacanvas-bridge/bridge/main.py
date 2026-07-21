@@ -77,21 +77,55 @@ async def _sync_once(cc: CasaCanvasClient, ha: HomeAssistantClient, log: logging
     log.info("Synchronisiere %d Entitaeten ...", len(entities))
     await cc.push_entities(entities)
 
-    dashboards_meta = await ha.list_lovelace_dashboards()
+    # 1) User-registrierte Dashboards (Storage-Mode): REST + WS-Fallback
+    try:
+        dashboards_meta = await ha.list_lovelace_dashboards()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("REST /lovelace/dashboards fehlgeschlagen: %s — versuche WebSocket.", exc)
+        dashboards_meta = []
+    if not dashboards_meta:
+        dashboards_meta = await ha.list_lovelace_dashboards_ws()
+    log.info("HA meldet %d zusaetzliche Lovelace-Dashboards.", len(dashboards_meta))
+
     payload: list[dict[str, Any]] = []
-    default = await ha.get_dashboard_config(None)
+
+    # 2) Default-Dashboard (Uebersicht / Hausdisplay im YAML-Modus)
+    default = None
+    try:
+        default = await ha.get_dashboard_config(None)
+    except Exception as exc:  # noqa: BLE001
+        log.info("REST-Default-Config fehlgeschlagen (%s) — nutze WebSocket.", exc)
+    if default is None:
+        default = await ha.get_dashboard_config_ws(None)
     if default is not None:
-        payload.append({"url_path": None, "title": "Uebersicht", "config": default})
+        title = (default.get("title") if isinstance(default, dict) else None) or "Uebersicht"
+        payload.append({"url_path": None, "title": title, "config": default})
+        log.info("Default-Dashboard '%s' geladen.", title)
+    else:
+        log.warning("Default-Dashboard konnte weder per REST noch WS geladen werden.")
+
+    # 3) Alle uebrigen Dashboards
     for d in dashboards_meta:
-        cfg = await ha.get_dashboard_config(d.get("url_path"))
+        url_path = d.get("url_path")
+        cfg = None
+        try:
+            cfg = await ha.get_dashboard_config(url_path)
+        except Exception as exc:  # noqa: BLE001
+            log.info("REST-Config fuer '%s' fehlgeschlagen (%s) — nutze WebSocket.", url_path, exc)
+        if cfg is None:
+            cfg = await ha.get_dashboard_config_ws(url_path)
         if cfg is not None:
             payload.append(
                 {
-                    "url_path": d.get("url_path"),
-                    "title": d.get("title") or d.get("url_path"),
+                    "url_path": url_path,
+                    "title": d.get("title") or url_path,
                     "config": cfg,
                 }
             )
+            log.info("Dashboard '%s' geladen.", d.get("title") or url_path)
+        else:
+            log.warning("Dashboard '%s' konnte nicht geladen werden.", url_path)
+
     # Serialize configs to YAML strings and normalise url_path (server requires non-empty).
     serialised = [
         {
@@ -101,9 +135,14 @@ async def _sync_once(cc: CasaCanvasClient, ha: HomeAssistantClient, log: logging
         }
         for p in payload
     ]
-    log.info("Synchronisiere %d Dashboards ...", len(payload))
+    log.info("Synchronisiere %d Dashboards ...", len(serialised))
     if serialised:
         await cc.push_dashboards(serialised)
+    else:
+        log.warning(
+            "Keine Dashboards gefunden. Falls dein 'Hausdisplay' in HA existiert, pruefe: "
+            "1) Token hat Adminrechte, 2) Dashboard ist in HA sichtbar, 3) HA erreichbar via WS."
+        )
 
 
 async def _process_deployment(
