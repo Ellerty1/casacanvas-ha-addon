@@ -16,6 +16,8 @@ class BridgeConfig:
     heartbeat_interval: int
     log_level: str
     supervisor_token: str
+    ha_url: str
+    ha_token: str
 
     @classmethod
     def load(cls) -> "BridgeConfig":
@@ -24,11 +26,14 @@ class BridgeConfig:
                 raw = json.load(f)
         except FileNotFoundError:
             raw = {}
+        env = os.environ
         return cls(
-            pairing_code=(raw.get("pairing_code") or "").strip(),
-            base_url=(raw.get("base_url") or "https://casacanvas.example.com").rstrip("/"),
-            poll_interval=int(raw.get("poll_interval") or 5),
-            heartbeat_interval=int(raw.get("heartbeat_interval") or 30),
-            log_level=(raw.get("log_level") or "info").lower(),
-            supervisor_token=os.environ.get("SUPERVISOR_TOKEN", ""),
+            pairing_code=(raw.get("pairing_code") or env.get("PAIRING_CODE") or "").strip(),
+            base_url=(raw.get("base_url") or env.get("BASE_URL") or "https://casacanvas.example.com").rstrip("/"),
+            poll_interval=int(raw.get("poll_interval") or env.get("POLL_INTERVAL") or 5),
+            heartbeat_interval=int(raw.get("heartbeat_interval") or env.get("HEARTBEAT_INTERVAL") or 30),
+            log_level=(raw.get("log_level") or env.get("LOG_LEVEL") or "info").lower(),
+            supervisor_token=env.get("SUPERVISOR_TOKEN", ""),
+            ha_url=(env.get("HA_URL") or "").rstrip("/"),
+            ha_token=env.get("HA_TOKEN", ""),
         )
