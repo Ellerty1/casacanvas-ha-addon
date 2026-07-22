@@ -12,6 +12,7 @@ import yaml
 from . import __version__
 from .client import CasaCanvasClient
 from .config import BridgeConfig
+from . import display as display_probe
 from .ha import HomeAssistantClient
 
 TOKEN_PATH = "/data/token"
@@ -164,11 +165,19 @@ async def _process_deployment(
 
 
 async def _heartbeat_loop(cc: CasaCanvasClient, cfg: BridgeConfig, log: logging.Logger) -> None:
+    last_display: dict[str, object] | None = None
+    ticks = 0
     while True:
         try:
-            await cc.heartbeat(__version__)
+            # alle 5 Ticks (oder beim Start) Display neu prüfen
+            if ticks % 5 == 0:
+                detected = display_probe.detect()
+                if detected:
+                    last_display = detected
+            await cc.heartbeat(__version__, display=last_display)
         except Exception:  # noqa: BLE001
             log.exception("Heartbeat fehlgeschlagen.")
+        ticks += 1
         await asyncio.sleep(cfg.heartbeat_interval)
 
 
