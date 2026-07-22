@@ -28,11 +28,14 @@ class CasaCanvasClient:
         r.raise_for_status()
         return r.json()
 
-    async def heartbeat(self, version: str) -> None:
+    async def heartbeat(self, version: str, display: dict[str, Any] | None = None) -> None:
+        body: dict[str, Any] = {"addon_version": version}
+        if display:
+            body["display"] = display
         r = await self._client.post(
             f"{self._base}/api/public/bridge/heartbeat",
             headers=self._auth,
-            json={"addon_version": version},
+            json=body,
             timeout=15,
         )
         r.raise_for_status()
